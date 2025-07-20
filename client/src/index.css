@@ -1,0 +1,198 @@
+/* Mapbox GL CSS must be imported first */
+@import 'mapbox-gl/dist/mapbox-gl.css';
+
+/* Your existing CSS below */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light mode variables */
+    --background: 0 0% 100%;
+    --foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 47.4% 11.2%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 47.4% 11.2%;
+    --primary: 187 100% 42.5%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 187 92% 69%;
+    --secondary-foreground: 0 0% 100%;
+    --accent: 142.1 70.6% 45.3%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 100% 50%;
+    --destructive-foreground: 210 40% 98%;
+    --ring: 215 20.2% 65.1%;
+    --radius: 0.5rem;
+    
+    /* Chart colors */
+    --chart-1: 187 100% 42.5%;
+    --chart-2: 142.1 70.6% 45.3%;
+    --chart-3: 187 92% 69%;
+    --chart-4: 0 100% 50%;
+    --chart-5: 217.9 91.2% 59.8%;
+
+    /* Sidebar specific colors */
+    --sidebar-background: 210 40% 96.1%;
+    --sidebar-foreground: 222.2 47.4% 11.2%;
+    --sidebar-primary: 187 100% 42.5%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 142.1 70.6% 45.3%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-ring: 215 20.2% 65.1%;
+  }
+
+  .dark {
+    /* Dark mode variables */
+    --background: 224 71% 4%;
+    --foreground: 213 31% 91%;
+    --muted: 223 47% 11%;
+    --muted-foreground: 215.4 16.3% 56.9%;
+    --accent: 216 34% 17%;
+    --accent-foreground: 210 40% 98%;
+    --popover: 224 71% 4%;
+    --popover-foreground: 215 20.2% 65.1%;
+    --border: 216 34% 17%;
+    --input: 216 34% 17%;
+    --card: 224 71% 4%;
+    --card-foreground: 213 31% 91%;
+    --primary: 187 100% 42.5%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 187 92% 69%;
+    --secondary-foreground: 0 0% 100%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --ring: 216 34% 17%;
+    
+    /* Sidebar specific colors - dark mode */
+    --sidebar-background: 224 71% 4%;
+    --sidebar-foreground: 213 31% 91%;
+    --sidebar-primary: 187 100% 42.5%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 216 34% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 216 34% 17%;
+    --sidebar-ring: 216 34% 17%;
+
+    /* Chart colors - maintaining visibility in dark mode */
+    --chart-1: 187 100% 42.5%;
+    --chart-2: 142.1 70.6% 45.3%;
+    --chart-3: 187 92% 69%;
+    --chart-4: 0 100% 50%;
+    --chart-5: 217.9 91.2% 59.8%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* Smooth transitions for dark mode toggle */
+  .transition-colors {
+    transition-property: color, background-color, border-color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-100 dark:bg-gray-800;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 dark:bg-gray-600 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400 dark:bg-gray-500;
+  }
+}
+
+@layer components {
+  /* Custom classes */
+  .neutral-dark {
+    @apply bg-gray-900 text-white;
+  }
+  
+  .neutral-light {
+    @apply bg-gray-50;
+  }
+  
+  .progress {
+    @apply overflow-hidden h-1 rounded-sm bg-gray-200 dark:bg-gray-700;
+  }
+  
+  .progress-bar {
+    @apply h-full bg-primary;
+  }
+  
+  .notification-indicator {
+    @apply absolute top-0 right-0 w-3 h-3 rounded-full bg-destructive border-2 border-white dark:border-gray-900;
+  }
+  
+  .toll-card {
+    @apply transition-all duration-200 hover:transform hover:-translate-y-0.5 hover:shadow-md;
+  }
+  
+  .page-transition {
+    @apply transition-all duration-300 ease-in-out;
+  }
+  
+  .fade-in {
+    animation: fadeIn 0.3s ease-out forwards;
+  }
+
+  /* Input focus styles */
+  .input-focus {
+    @apply focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background focus:outline-none;
+  }
+
+  /* Button styles */
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90 transition-colors;
+  }
+
+  /* Card styles */
+  .card {
+    @apply bg-card text-card-foreground rounded-lg border shadow-sm;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+@layer utilities {
+  /* Custom utilities */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .scroll-mt-header {
+    scroll-margin-top: 4rem;
+  }
+
+  .full-bleed {
+    width: 100vw;
+    margin-left: 50%;
+    transform: translateX(-50%);
+  }
+}
