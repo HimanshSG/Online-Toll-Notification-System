@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-import express from "expr ess";
+import express from "express";
 import session from "express-session";
 import MongoStore from "connect-mongo";
 import { connectToDatabase } from "../db/db.js";
