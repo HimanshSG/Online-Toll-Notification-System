@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-import express from "express";
+import express from "expr ess";
 import session from "express-session";
 import MongoStore from "connect-mongo";
 import { connectToDatabase } from "../db/db.js";
@@ -103,11 +103,10 @@ const startServer = async () => {
     }
 
     // Start server
-    const port = process.env.PORT || 5000;
-    server.listen(port, '0.0.0.0', () => {
-      log(`🌍 Server running on port ${port}`);
-      log(`🛡️ Environment: ${process.env.NODE_ENV || 'development'}`);
-    });
+  const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
+});
 
   } catch (error) {
     log(`❌ Fatal startup error: ${error.message}`);

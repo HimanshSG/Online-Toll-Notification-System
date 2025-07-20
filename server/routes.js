@@ -14,6 +14,26 @@ import {
 } from "../shared/schema.js";
 import { generateOTP, calculateDistance } from "./storage.js";
 import { setupNotificationService } from "./notificationService.js";
+// Twilio SMS Service
+const sendOtpSms = async (phoneNumber, otp) => {
+  try {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const client = require('twilio')(accountSid, authToken);
+
+    const message = await client.messages.create({
+      body: `Your FASTag OTP code is: ${otp}`,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to: phoneNumber
+    });
+
+    console.log(`OTP sent to ${phoneNumber}, Message SID: ${message.sid}`);
+    return true;
+  } catch (error) {
+    console.error('Twilio SMS Error:', error);
+    throw new Error('Failed to send OTP via SMS');
+  }
+};
 
 const router = express.Router();
 const SALT_ROUNDS = 10;
