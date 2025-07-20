@@ -4,86 +4,117 @@ dotenv.config();
 import express from "express";
 import session from "express-session";
 import MongoStore from "connect-mongo";
-import { connectToDatabase } from "../db/db.js";  // ✅ ADD THIS
+import { connectToDatabase } from "../db/db.js";
 import { registerRoutes } from "./routes.js";
 import { setupVite, serveStatic, log } from "./vite.js";
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const app = express();
-app.use(express.json());
+
+// Enhanced security middleware
+app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: false }));
 
-// MongoDB session middleware
-app.use(session({
+// Session configuration with MongoDB
+const sessionConfig = {
   store: MongoStore.create({
     mongoUrl: process.env.MONGODB_URI,
-    dbName: 'toll-notification-system',
+    dbName: process.env.MONGODB_NAME || 'toll-notification-system',
     collectionName: 'sessions',
+    ttl: 30 * 24 * 60 * 60 // 30 days in seconds
   }),
   secret: process.env.SESSION_SECRET || 'toll_notify_secret',
   resave: false,
   saveUninitialized: false,
   cookie: {
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
   }
-}));
+};
 
-// Logging middleware
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1); // Trust first proxy
+  sessionConfig.cookie.secure = true;
+}
+
+app.use(session(sessionConfig));
+
+// Enhanced logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
+  const { method, path, ip } = req;
 
   res.on("finish", () => {
     const duration = Date.now() - start;
+    const logMessage = `${method} ${path} ${res.statusCode} ${duration}ms - ${ip}`;
+    
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      log(logMessage);
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Request Body:', req.body);
+        console.log('Response:', res.locals.body);
       }
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-      log(logLine);
     }
   });
 
   next();
 });
 
-// Main server logic
-(async () => {
+// Error handling wrapper
+const startServer = async () => {
   try {
-    await connectToDatabase();  // ✅ CONNECT MONGODB FIRST
+    // Database connection
+    await connectToDatabase();
+    log("✅ MongoDB connected successfully");
+
+    // Route registration
     const server = await registerRoutes(app);
 
-    app.use((err, _req, res, _next) => {
-      const status = err.status || err.statusCode || 500;
-      const message = err.message || "Internal Server Error";
-      res.status(status).json({ message });
-      throw err;
+    // Error handling middleware
+    app.use((err, req, res, next) => {
+      const status = err.status || 500;
+      const message = process.env.NODE_ENV === 'development' 
+        ? err.message 
+        : 'Internal Server Error';
+      
+      if (status >= 500) {
+        log(`❗ Server Error: ${err.stack || err.message}`);
+      }
+
+      res.status(status).json({ 
+        status: 'error',
+        message
+      });
     });
 
-    if (app.get("env") === "development") {
+    // Vite setup (development only)
+    if (process.env.NODE_ENV === 'development') {
       await setupVite(app, server);
+      log("🚀 Vite dev server enabled");
     } else {
       serveStatic(app);
+      log("📦 Serving static production assets");
     }
 
+    // Start server
     const port = process.env.PORT || 5000;
     server.listen(port, '0.0.0.0', () => {
-      log(`Serving on port ${port}`);
+      log(`🌍 Server running on port ${port}`);
+      log(`🛡️ Environment: ${process.env.NODE_ENV || 'development'}`);
     });
 
   } catch (error) {
-    console.error("❌ Server failed to start:", error);
+    log(`❌ Fatal startup error: ${error.message}`);
+    console.error(error.stack);
     process.exit(1);
   }
-})();
+};
+
+// Start the application
+startServer();
