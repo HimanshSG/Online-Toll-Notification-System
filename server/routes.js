@@ -1,10 +1,11 @@
+import dotenv from "dotenv";
+dotenv.config();
 import express from "express";
 import { createServer } from "http";
 import session from "express-session";
 import { WebSocketServer } from "ws";
 import bcrypt from "bcrypt";
 import mongoose from "mongoose";
-import jwt from 'jsonwebtoken';
 import {
   User,
   Admin,
@@ -14,95 +15,83 @@ import {
 } from "../shared/schema.js";
 import { generateOTP, calculateDistance } from "./storage.js";
 import { setupNotificationService } from "./notificationService.js";
-// Twilio SMS Service
-const sendOtpSms = async (phoneNumber, otp) => {
-  try {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const client = require('twilio')(accountSid, authToken);
+import twilio from 'twilio';
 
-    const message = await client.messages.create({
-      body: `Your FASTag OTP code is: ${otp}`,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: phoneNumber
-    });
 
-    console.log(`OTP sent to ${phoneNumber}, Message SID: ${message.sid}`);
-    return true;
-  } catch (error) {
-    console.error('Twilio SMS Error:', error);
-    throw new Error('Failed to send OTP via SMS');
-  }
-};
-
-const router = express.Router();
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 const PROXIMITY_THRESHOLD_KM = 2;
 const LOW_BALANCE_THRESHOLD = 200;
 
-// Validate environment variables
-if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_PHONE_NUMBER) {
-  throw new Error('Twilio credentials missing in environment variables');
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const twilioPhone = process.env.TWILIO_PHONE_NUMBER
+
+const twilioClient = twilio(accountSid, authToken);
+
+
+// Utility function to send OTP via SMS
+async function sendOtpSms(phoneNumber, otp) {
+  try {
+    let normalizedPhone = phoneNumber;
+    if (!phoneNumber.startsWith('+')) {
+      normalizedPhone = `+91${phoneNumber}`;
+    }
+
+    await twilioClient.messages.create({
+      body: `Your TollNotify verification code is: ${otp}`,
+      from: twilioPhone,
+      to: normalizedPhone,
+    });
+  } catch (error) {
+    console.error("❌ Error sending OTP:", error);
+    throw new Error("Failed to send OTP SMS.");
+  }
 }
+
 
 export async function registerRoutes(app) {
   const httpServer = createServer(app);
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
   const { sendNotification, checkProximityAlerts } = setupNotificationService(wss);
-  const activeConnections = new Map();
+  const clients = new Map();
 
-  // WebSocket Connection Management
-  wss.on("connection", (ws, req) => {
-    const token = req.url.split('token=')[1];
-    
-    try {
-      if (!token) throw new Error('No token provided');
-      
-      const decoded = jwt.verify(token, JWT_SECRET);
-      const userId = decoded.userId;
+  // WebSocket connection
+  wss.on("connection", (ws) => {
+    let userId;
 
-      // Store connection with user context
-      activeConnections.set(userId, ws);
-      console.log(`WebSocket connected: User ${userId}`);
-
-      ws.on("message", async (message) => {
-        try {
-          const data = JSON.parse(message.toString());
-          
-          if (data.type === "locationUpdate") {
-            await handleLocationUpdate(userId, data);
+    ws.on("message", async (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        if (data.type === "authenticate") {
+          userId = data.userId;
+          clients.set(userId, ws);
+          console.log(`Client connected: User ${userId}`);
+        } else if (data.type === "locationUpdate") {
+          const { userId, latitude, longitude } = data;
+          if (userId) {
+            await User.findByIdAndUpdate(userId, {
+              $set: {
+                lastKnownLatitude: latitude,
+                lastKnownLongitude: longitude,
+                lastLocationTimestamp: new Date(),
+              },
+            });
+            await checkProximityAlerts(userId, latitude, longitude);
           }
-        } catch (error) {
-          console.error("WS message error:", error);
         }
-      });
-
-      ws.on("close", () => {
-        activeConnections.delete(userId);
-        console.log(`WebSocket closed: User ${userId}`);
-      });
-
-    } catch (error) {
-      console.error("WS auth failed:", error);
-      ws.close(1008, "Authentication failed");
-    }
-  });
-
-  // Helper Functions
-  async function handleLocationUpdate(userId, data) {
-    await User.findByIdAndUpdate(userId, {
-      $set: {
-        lastKnownLocation: {
-          type: "Point",
-          coordinates: [data.longitude, data.latitude]
-        },
-        lastLocationUpdate: new Date()
+      } catch (error) {
+        console.error("WebSocket message error:", error);
       }
     });
-    await checkProximityAlerts(userId, data.latitude, data.longitude);
-  }
 
+    ws.on("close", () => {
+      if (userId) {
+        clients.delete(userId);
+        console.log(`Client disconnected: User ${userId}`);
+      }
+    });
+  });
 
   // =======================
   //  Authentication Routes

@@ -1,8 +1,4 @@
-console.log('Twilio Config:', {
-  accountSid: process.env.TWILIO_ACCOUNT_SID?.length,
-  authToken: process.env.TWILIO_AUTH_TOKEN?.length,
-  phone: process.env.TWILIO_PHONE_NUMBER
-});
+
 import dotenv from "dotenv";
 dotenv.config();
 import { User, NotificationLog, TollPlaza } from "../shared/schema.js";
