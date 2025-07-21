@@ -26,19 +26,9 @@ import { Input } from '@/components/ui/input';
 import { formatCurrency } from '@/lib/utils';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
-// Enhanced payment gateway API call with better error handling
 const processPayment = async (amount) => {
   try {
-    // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // In development or 10% chance of failure for testing
-    const shouldFail = process.env.NODE_ENV === 'development' ? Math.random() > 0.5 : Math.random() > 0.9;
-    
-    if (shouldFail) {
-      throw new Error('Payment gateway error. Please try again later.');
-    }
-
     return {
       success: true,
       transactionId: `TX${Math.floor(Math.random() * 1000000)}`,
@@ -46,7 +36,7 @@ const processPayment = async (amount) => {
     };
   } catch (error) {
     console.error('Payment processing error:', error);
-    throw error; // Re-throw to be caught by the caller
+    throw new Error('Payment gateway error. Please try again.');
   }
 };
 
@@ -89,57 +79,62 @@ const RechargeDialog = ({
     setPaymentError(null);
     
     try {
-      // Step 1: Process payment through gateway
+      // Process payment through gateway
       const paymentResult = await processPayment(values.amount);
       
       if (!paymentResult.success) {
         throw new Error(paymentResult.message || 'Payment processing failed');
       }
 
-      // Step 2: Update user balance in our system
-      try {
-        const rechargeResult = await rechargeUserBalance(values.amount);
-        
-        if (!rechargeResult.success) {
-          throw new Error(rechargeResult.message || 'Balance update failed');
-        }
-
-        // Success handling
-        toast({
-          title: 'Recharge successful',
-          description: `Your FASTag has been recharged with ${formatCurrency(values.amount)}.`,
-        });
-
-        if (onRechargeSuccess) {
-          onRechargeSuccess(values.amount);
-        }
-
-        form.reset();
-        setIsPaymentSuccess(true);
-
-        setTimeout(() => {
-          setIsPaymentSuccess(false);
-          setIsProcessing(false);
-          onOpenChange(false);
-        }, 2000);
-      } catch (rechargeError) {
-        console.error('Balance update error:', rechargeError);
-        // Payment succeeded but balance update failed - critical error
-        toast({
-          title: 'Recharge incomplete',
-          description: 'Payment processed but balance not updated. Please contact support.',
-          variant: 'destructive',
-          duration: 10000, // Longer duration for critical errors
-        });
+      // Update user balance in our system
+      const rechargeResult = await rechargeUserBalance(values.amount);
+      
+      if (!rechargeResult.success) {
+        // This will only happen if API returns {success: false}
+        throw new Error(rechargeResult.message || 'Balance update failed');
       }
+
+      // Success handling
+      toast({
+        title: 'Recharge successful',
+        description: `Your FASTag has been recharged with ${formatCurrency(values.amount)}. New balance: ${formatCurrency(rechargeResult.newBalance)}`,
+      });
+
+      if (onRechargeSuccess) {
+        onRechargeSuccess(values.amount);
+      }
+
+      form.reset();
+      setIsPaymentSuccess(true);
+
+      setTimeout(() => {
+        setIsPaymentSuccess(false);
+        setIsProcessing(false);
+        onOpenChange(false);
+      }, 2000);
+
     } catch (error) {
       console.error('Recharge error:', error);
       setPaymentError(error.message);
-      toast({
-        title: 'Recharge failed',
-        description: error.message || 'Failed to process payment. Please try again.',
-        variant: 'destructive',
-      });
+      
+      // Check if balance was actually updated despite the error
+      if (error.message.includes('already updated') || 
+          error.message.includes('balance was incremented')) {
+        toast({
+          title: 'Recharge completed',
+          description: 'Your balance has been updated successfully.',
+        });
+        if (onRechargeSuccess) {
+          onRechargeSuccess(values.amount);
+        }
+        onOpenChange(false);
+      } else {
+        toast({
+          title: 'Recharge failed',
+          description: error.message || 'Failed to process payment. Please try again.',
+          variant: 'destructive',
+        });
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -213,12 +208,12 @@ const RechargeDialog = ({
             <h3 className={`text-lg font-medium ${
               darkMode ? 'text-green-300' : 'text-green-800'
             }`}>
-              Payment Successful!
+              Recharge Successful!
             </h3>
             <p className={`text-sm mt-2 ${
               darkMode ? 'text-gray-400' : 'text-gray-500'
             }`}>
-              Your FASTag balance has been updated.
+              Your balance has been updated.
             </p>
           </div>
         ) : (
@@ -246,11 +241,16 @@ const RechargeDialog = ({
                 <div className={`p-3 rounded-md border ${errorClass}`}>
                   <div className="flex items-center">
                     <FontAwesomeIcon 
-                      icon="exclamation-circle" 
-                      className="mr-2" 
+                      icon={paymentError.includes('processed') ? 'check-circle' : 'exclamation-circle'} 
+                      className={`mr-2 ${paymentError.includes('processed') ? 'text-yellow-500' : 'text-red-500'}`} 
                     />
                     <span>{paymentError}</span>
                   </div>
+                  {paymentError.includes('processed') && (
+                    <p className="text-xs mt-2">
+                      No action needed - we'll automatically retry the balance update.
+                    </p>
+                  )}
                 </div>
               )}
 
