@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useToast } from '@/hooks/use-toast';
-import { useDarkMode } from '@/components/contexts/DarkModeContext';
+import { useDarkMode } from '@/components/contexts/DarkModeContext'; // Add this import
 import {
   Dialog,
   DialogContent,
@@ -26,27 +26,17 @@ import { Input } from '@/components/ui/input';
 import { formatCurrency } from '@/lib/utils';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
-// Enhanced payment gateway API call with better error handling
+// Mock payment gateway API call
 const processPayment = async (amount) => {
-  try {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // In development or 10% chance of failure for testing
-    const shouldFail = process.env.NODE_ENV === 'development' ? Math.random() > 0.5 : Math.random() > 0.9;
-    
-    if (shouldFail) {
-      throw new Error('Payment gateway error. Please try again later.');
-    }
-
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  if (process.env.NODE_ENV === 'development' || Math.random() > 0.9) {
     return {
       success: true,
       transactionId: `TX${Math.floor(Math.random() * 1000000)}`,
       message: 'Payment successful',
     };
-  } catch (error) {
-    console.error('Payment processing error:', error);
-    throw error; // Re-throw to be caught by the caller
+  } else {
+    throw new Error('Payment gateway error. Please try again.');
   }
 };
 
@@ -71,11 +61,10 @@ const RechargeDialog = ({
   onRechargeSuccess 
 }) => {
   const { toast } = useToast();
-  const { darkMode } = useDarkMode();
+  const { darkMode } = useDarkMode(); // Get dark mode state
   const [paymentMethod, setPaymentMethod] = useState('card');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPaymentSuccess, setIsPaymentSuccess] = useState(false);
-  const [paymentError, setPaymentError] = useState(null);
   
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -86,61 +75,37 @@ const RechargeDialog = ({
 
   const onSubmit = async (values) => {
     setIsProcessing(true);
-    setPaymentError(null);
-    
     try {
-      // Step 1: Process payment through gateway
-      const paymentResult = await processPayment(values.amount);
-      
-      if (!paymentResult.success) {
-        throw new Error(paymentResult.message || 'Payment processing failed');
-      }
-
-      // Step 2: Update user balance in our system
-      try {
+      const result = await processPayment(values.amount);
+  
+      if (result.success) {
         const rechargeResult = await rechargeUserBalance(values.amount);
-        
-        if (!rechargeResult.success) {
-          throw new Error(rechargeResult.message || 'Balance update failed');
+  
+        if (onRechargeSuccess) {
+          onRechargeSuccess(values.amount); // Pass the added amount
         }
-
-        // Success handling
+  
         toast({
           title: 'Recharge successful',
           description: `Your FASTag has been recharged with ${formatCurrency(values.amount)}.`,
         });
-
-        if (onRechargeSuccess) {
-          onRechargeSuccess(values.amount);
-        }
-
+  
         form.reset();
         setIsPaymentSuccess(true);
-
+  
         setTimeout(() => {
           setIsPaymentSuccess(false);
           setIsProcessing(false);
           onOpenChange(false);
         }, 2000);
-      } catch (rechargeError) {
-        console.error('Balance update error:', rechargeError);
-        // Payment succeeded but balance update failed - critical error
-        toast({
-          title: 'Recharge incomplete',
-          description: 'Payment processed but balance not updated. Please contact support.',
-          variant: 'destructive',
-          duration: 10000, // Longer duration for critical errors
-        });
       }
     } catch (error) {
       console.error('Recharge error:', error);
-      setPaymentError(error.message);
       toast({
         title: 'Recharge failed',
         description: error.message || 'Failed to process payment. Please try again.',
         variant: 'destructive',
       });
-    } finally {
       setIsProcessing(false);
     }
   };
@@ -149,7 +114,6 @@ const RechargeDialog = ({
     if (!open) {
       setIsPaymentSuccess(false);
       setIsProcessing(false);
-      setPaymentError(null);
       form.reset();
     }
     onOpenChange(open);
@@ -183,10 +147,6 @@ const RechargeDialog = ({
   const balanceBoxClass = darkMode 
     ? 'bg-gray-700 text-white'
     : 'bg-gray-50 text-neutral-dark';
-
-  const errorClass = darkMode 
-    ? 'text-red-400 bg-red-900/20 border-red-700'
-    : 'text-red-600 bg-red-50 border-red-200';
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -241,18 +201,6 @@ const RechargeDialog = ({
                   FASTag ID: {fastagId}
                 </p>
               </div>
-
-              {paymentError && (
-                <div className={`p-3 rounded-md border ${errorClass}`}>
-                  <div className="flex items-center">
-                    <FontAwesomeIcon 
-                      icon="exclamation-circle" 
-                      className="mr-2" 
-                    />
-                    <span>{paymentError}</span>
-                  </div>
-                </div>
-              )}
 
               <FormField
                 control={form.control}
