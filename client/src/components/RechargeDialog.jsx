@@ -28,16 +28,12 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
 // Mock payment gateway API call
 const processPayment = async (amount) => {
-  await new Promise(resolve => setTimeout(resolve, 1500));
-  if (process.env.NODE_ENV === 'development' || Math.random() > 0.9) {
-    return {
-      success: true,
-      transactionId: `TX${Math.floor(Math.random() * 1000000)}`,
-      message: 'Payment successful',
-    };
-  } else {
-    throw new Error('Payment gateway error. Please try again.');
-  }
+  await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate delay
+  return {
+    success: true,
+    transactionId: `TX${Math.floor(Math.random() * 1000000)}`,
+    message: 'Payment successful',
+  };
 };
 
 const formSchema = z.object({
